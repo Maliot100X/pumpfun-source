@@ -14,7 +14,7 @@ pub type Key=[u8;32];
 
 
 
-pub mod business_error_codes; pub mod shared_donation; pub mod donation_handlers; pub mod settlement_handlers; pub mod shared_distribution;
+pub mod business_error_codes; pub mod shared_donation; pub mod donation_handlers; pub mod settlement_handlers; pub mod shared_distribution { include!("tools/distribution/shared.rs"); include!("tools/fair_distribution.rs"); }
 
 anchor_lang::declare_id!("RLAYHr9TRFcKB2ubYQhspcnXiaGpaVzNQvHytt47RZu");
 pub mod anchor_framework {

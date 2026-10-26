@@ -1,4 +1,4 @@
-//! Typed distribution worker; full compiled-body identity remains a separate check.
+// Typed distribution worker; full compiled-body identity remains a separate check.
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{TokenAccount,TransferChecked};
 use crate::anchor_framework::{Share,Receipt};
@@ -16,29 +16,107 @@ pub fn distribute<'info>(ctx:DistributionContext<'info,'info>,args:DistributionA
  let weights:Vec<u16>=shares.iter().map(|share|share.bps).collect();
  let amounts=fair_amounts(total,&weights)?;let mint_key=mint.key();
  for (index,share) in shares.iter().enumerate() {
-  let info=&remaining[index];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                  let info=&remaining[index];
   let token=InterfaceAccount::<TokenAccount>::try_from(info)?;
   if token.owner!=share.address {return Err(worker_error!(InvalidTokenAccountOwner,98).with_pubkeys((token.owner,share.address)));}
   if token.mint!=mint_key {return Err(worker_error!(InvalidTokenAccountMint,105).with_pubkeys((token.mint,mint_key)));}
   if *token.to_account_info().owner!=expected_program {return Err(worker_error!(InvalidTokenAccountProgram,112).with_pubkeys((*token.to_account_info().owner,expected_program)));}
-  let amount=amounts[index];
-  if amount!=0 {anchor_spl::token_interface::transfer_checked(CpiContext::new_with_signer(program.clone(),TransferChecked {from:source.clone(),mint:mint.clone(),to:token.to_account_info(),authority:authority.clone()},seeds),amount,decimals)?;}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                   let amount=amounts[index];
+  if amount!=0 {anchor_spl::token_interface::transfer_checked(CpiContext::new_with_signer(program.clone(),TransferChecked {from:source.clone(),mint:mint.clone(),to:info.clone(),authority:authority.clone()},seeds),amount,decimals)?;}
  }
  Ok(shares.iter().zip(amounts.iter()).map(|(share,amount)|Receipt {share_type:share.share_type.clone(),address:share.address,amount:*amount,bps:share.bps}).collect())
-}
-pub fn fair_amounts(total:u64,weights:&[u16])->Result<Vec<u64>> {
- if weights.is_empty() {return Ok(Vec::new());}
- let mut amounts=Vec::with_capacity(weights.len());let mut remainders=Vec::with_capacity(weights.len());let mut allocated=0u64;
- for (index,weight) in weights.iter().enumerate() {
-  let product=u128::from(total)*u128::from(*weight);let quotient=product/10000;
-  let amount=quotient as u64;let remainder=product%10000;
-  amounts.push(amount);remainders.push((index,remainder));
-  allocated=allocated.checked_add(amount).ok_or(Code::ArithmeticOverflow)?;
- }
- let left=total.checked_sub(allocated).ok_or(Code::ArithmeticOverflow)?;
- if left!=0 {
-  remainders.sort_by(|a,b|b.1.cmp(&a.1));
-  for position in 0..(left as usize).min(remainders.len()) {let index=remainders[position].0;amounts[index]=amounts[index].checked_add(1).ok_or(Code::ArithmeticOverflow)?;}
- }
- Ok(amounts)
 }
