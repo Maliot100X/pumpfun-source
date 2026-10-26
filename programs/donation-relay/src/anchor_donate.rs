@@ -25,3 +25,8 @@ fn native_mint_pair(mint:&Pubkey,program:&Pubkey)->bool {
 include!("instructions/v1/public_api/donate/donate_native.rs");
 include!("instructions/v1/public_api/donate/donate_native_pubkey_config_id.rs");
 
+
+include!("state/v1/distribution.rs");
+include!("instructions/v1/relayer_only/close_donation_epoch.rs");
+#[event]
+pub struct DonationEpochClosedV1Event {pub daas_event_discriminator:DaasEventDiscriminator,pub config_id:[u8;32],pub mint:Pubkey,pub epoch:u128,pub gross_epoch_amount:u64}

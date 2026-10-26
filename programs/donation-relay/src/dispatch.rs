@@ -75,7 +75,6 @@ pub fn dispatch<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
  let raw_args=&data[8..];
  // Original169 routes to eleven distinct business wrappers178..188.
  match selector {
-  [171, 28, 54, 214, 140, 137, 101, 90]=>wrap_close_donation_epoch_v1(rt,contexts,program,accounts,raw_args),
   [204, 159, 132, 117, 132, 86, 223, 73]=>wrap_just_swap_v1(rt,contexts,program,accounts,raw_args),
   [218, 85, 237, 178, 24, 174, 102, 41]=>wrap_swap_then_distribute_v1(rt,contexts,program,accounts,raw_args),
   [210, 176, 49, 190, 147, 105, 115, 119]=>wrap_distribute_after_just_swapping_v1(rt,contexts,program,accounts,raw_args),
@@ -100,17 +99,7 @@ pub fn dispatch<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
 
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
-fn wrap_close_donation_epoch_v1<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
- rt:&mut R,contexts:&mut C,program:Key,accounts:&[Account],raw_args:&[u8]
-)->D<()> {
- rt.log_instruction("Instruction: CloseDonationEpochV1");
- let instruction=codec::decode_arguments("close_donation_epoch_v1",raw_args).map_err(Failure::Body)?;
- let codec::Instruction::Close(config,epoch)=instruction else {unreachable!("fixed decoder selection")};
-   let mut frame=contexts.epoch(rt,&program,accounts,raw_args,config,epoch)?;
-   let event=body::close_donation_epoch_v1(rt,&mut frame.body(),config,epoch).map_err(Failure::Body)?;
-   emit_and_return(rt,&event,frame.event())?;
-   exit::account_exit145(rt,&program,&frame.exit()).map_err(Failure::Exit)
-}
+
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
 
