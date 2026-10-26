@@ -75,7 +75,6 @@ pub fn dispatch<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
  let raw_args=&data[8..];
  // Original169 routes to eleven distinct business wrappers178..188.
  match selector {
-  [204, 159, 132, 117, 132, 86, 223, 73]=>wrap_just_swap_v1(rt,contexts,program,accounts,raw_args),
   [218, 85, 237, 178, 24, 174, 102, 41]=>wrap_swap_then_distribute_v1(rt,contexts,program,accounts,raw_args),
   [210, 176, 49, 190, 147, 105, 115, 119]=>wrap_distribute_after_just_swapping_v1(rt,contexts,program,accounts,raw_args),
   [152, 149, 100, 48, 118, 236, 9, 243]=>wrap_distribute_non_swap_output_mint_v1(rt,contexts,program,accounts,raw_args),
@@ -103,19 +102,6 @@ pub fn dispatch<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
 
-
-// Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
-fn wrap_just_swap_v1<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
- rt:&mut R,contexts:&mut C,program:Key,accounts:&[Account],raw_args:&[u8]
-)->D<()> {
- rt.log_instruction("Instruction: JustSwapV1");
- let instruction=codec::decode_arguments("just_swap_v1",raw_args).map_err(Failure::Body)?;
- let codec::Instruction::JustSwap(swap_data)=instruction else {unreachable!("fixed decoder selection")};
-   let mut frame=contexts.just_swap(rt,&program,accounts,raw_args,&swap_data)?;
-   let event={let c=frame.body();body::just_swap_v1(rt,&c.body,c.receipt,c.receipt_account,c.receipt_bump,&swap_data,c.remaining)}.map_err(Failure::Body)?;
-   emit_and_return(rt,&event,frame.event())?;
-   exit::account_exit153(rt,&program,&frame.exit()).map_err(Failure::Exit)
-}
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
 fn wrap_swap_then_distribute_v1<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
