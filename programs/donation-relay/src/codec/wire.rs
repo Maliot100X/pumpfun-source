@@ -1,9 +1,9 @@
 //! Wire structs reconstructed from the captured Relay IDL.
 use borsh::BorshDeserialize;
 use solana_program::pubkey::Pubkey;
-#[derive(BorshDeserialize)]
+#[derive(BorshDeserialize,borsh::BorshSerialize,Clone)]
 pub enum ShareType {Beneficiary, Fee, Tip}
-#[derive(BorshDeserialize)]
+#[derive(BorshDeserialize,borsh::BorshSerialize,Clone)]
 pub struct Share {pub share_type:ShareType,pub address:Pubkey,pub bps:u16}
 #[derive(BorshDeserialize)]
 pub struct CloseDonationEpochV1 { pub config_id:[u8;32],pub epoch:u128 }

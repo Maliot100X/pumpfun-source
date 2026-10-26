@@ -75,9 +75,6 @@ pub fn dispatch<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
  let raw_args=&data[8..];
  // Original169 routes to eleven distinct business wrappers178..188.
  match selector {
-  [218, 85, 237, 178, 24, 174, 102, 41]=>wrap_swap_then_distribute_v1(rt,contexts,program,accounts,raw_args),
-  [210, 176, 49, 190, 147, 105, 115, 119]=>wrap_distribute_after_just_swapping_v1(rt,contexts,program,accounts,raw_args),
-  [152, 149, 100, 48, 118, 236, 9, 243]=>wrap_distribute_non_swap_output_mint_v1(rt,contexts,program,accounts,raw_args),
   _=>Err(framework(101)),
  }
 }
@@ -104,46 +101,13 @@ pub fn dispatch<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
 
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
-fn wrap_swap_then_distribute_v1<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
- rt:&mut R,contexts:&mut C,program:Key,accounts:&[Account],raw_args:&[u8]
-)->D<()> {
- rt.log_instruction("Instruction: SwapThenDistributeV1");
- let instruction=codec::decode_arguments("swap_then_distribute_v1",raw_args).map_err(Failure::Body)?;
- let codec::Instruction::Combined(swap_data,shares)=instruction else {unreachable!("fixed decoder selection")};
-   let frame=contexts.combined(rt,&program,accounts,raw_args,&swap_data,&shares)?;
-   let c=frame.body();
-   let event=body::swap_then_distribute_v1(rt,&c.body,&swap_data,&shares,c.remaining).map_err(Failure::Body)?;
-   emit_and_return(rt,&event,frame.event())?;
-   exit::account_exit155(rt,&program,&frame.exit()).map_err(Failure::Exit)
-}
+
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
-fn wrap_distribute_after_just_swapping_v1<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
- rt:&mut R,contexts:&mut C,program:Key,accounts:&[Account],raw_args:&[u8]
-)->D<()> {
- rt.log_instruction("Instruction: DistributeAfterJustSwappingV1");
- let instruction=codec::decode_arguments("distribute_after_just_swapping_v1",raw_args).map_err(Failure::Body)?;
- let codec::Instruction::After(shares)=instruction else {unreachable!("fixed decoder selection")};
-   let frame=contexts.after(rt,&program,accounts,raw_args,&shares)?;
-   let c=frame.body();
-   let event=body::distribute_after_just_swapping_v1(rt,&c.body,c.receipt,&shares,c.remaining).map_err(Failure::Body)?;
-   emit_and_return(rt,&event,frame.event())?;
-   exit::account_exit147(rt,&program,&frame.exit()).map_err(Failure::Exit)
-}
+
 
 // Instruction-specific wrapper: log, decode, admission, body, event/return, exit.
-fn wrap_distribute_non_swap_output_mint_v1<R:crate::idl_runtime::IdlRuntime,C:Admission<R>>(
- rt:&mut R,contexts:&mut C,program:Key,accounts:&[Account],raw_args:&[u8]
-)->D<()> {
- rt.log_instruction("Instruction: DistributeNonSwapOutputMintV1");
- let instruction=codec::decode_arguments("distribute_non_swap_output_mint_v1",raw_args).map_err(Failure::Body)?;
- let codec::Instruction::NonSwap(shares)=instruction else {unreachable!("fixed decoder selection")};
-   let frame=contexts.non_swap(rt,&program,accounts,raw_args,&shares)?;
-   let c=frame.body();
-   let event=body::distribute_non_swap_output_mint_v1(rt,&c.body,&shares,c.remaining).map_err(Failure::Body)?;
-   emit_and_return(rt,&event,frame.event())?;
-   exit::account_exit149(rt,&program,&frame.exit()).map_err(Failure::Exit)
-}
+
 
 /// Report propagated ordinary errors once, as169 calls286 before290 lowering.
 /// This is not the raw Solana u64 ABI: rich error encoding/lowering still needs

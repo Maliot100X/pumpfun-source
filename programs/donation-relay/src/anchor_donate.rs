@@ -35,3 +35,13 @@ include!("state/v1/swap_receipt.rs");
 include!("instructions/v1/relayer_only/distribute/just_swap.rs");
 #[event]
 pub struct DonationEpochJustSwappedV1Event {pub daas_event_discriminator:DaasEventDiscriminator,pub config_id:[u8;32],pub mint:Pubkey,pub epoch:u128,pub distribution:Pubkey,pub swap_receipt:Pubkey,pub output_token_account:Pubkey,pub swap_output_amount:u64,pub settlement_mint:Pubkey}
+
+pub use crate::codec::wire::{Share,ShareType};
+include!("instructions/v1/relayer_only/distribute/distribute_after_just_swapping.rs");
+include!("instructions/v1/relayer_only/distribute/distribute_non_swap_output_mint.rs");
+#[derive(AnchorSerialize,AnchorDeserialize,Clone)]
+pub struct Receipt {pub share_type:ShareType,pub address:Pubkey,pub amount:u64,pub bps:u16}
+#[event]
+pub struct DonationEpochProcessedV1Event {pub daas_event_discriminator:DaasEventDiscriminator,pub config_id:[u8;32],pub mint:Pubkey,pub epoch:u128,pub settled_amount:u64,pub settlement_mint:Pubkey,pub transfers:Vec<Receipt>}
+
+include!("instructions/v1/relayer_only/distribute/swap_then_distribute.rs");
