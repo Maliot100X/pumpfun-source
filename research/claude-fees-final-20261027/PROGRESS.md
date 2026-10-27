@@ -66,3 +66,16 @@ tail helper), or an if-let/match whose scrutinee temp is a surviving alloca with
   frame differs @24); iso-seeds-only 6072 (branch unchanged, as predicted while post-if returns still share expected).
 - Upstream main now integrates Withdraw (18431203e). Coordinator: Fees session owns integration; this lane = ATA only.
   ATA gains go to the Fees session harvest dir fees100/shared/harvest/fees-final-<n>/ and to this branch.
+
+## Step 4: ATA (243184) recovered with a stable labeled block (container-verified)
+- Surgery H/I/J: ANY non-successor block right after the invoke test reproduces the original; J = moving only the
+  existing common error-return join (bb43: PHIs + lifetime.end(expected)) there, no other IR change -> exact.
+- Cause: rustc creates that slot from the require!-error path's first exit block. With `if cond {}` the condition temp
+  _27 is live across the body, so that block is the empty StorageDead(_27) node (deleted by SimplifyCFG).
+- Native screens: `'create: { let true = cond else { break 'create }; ... }` and `'create: { if cond {} else { break 'create; } ... }`
+  both give 6080 B normalized-equal; `if !cond { break }` flips the owner check (6072).
+- Container c3/ata-letelse (w580 + one line): 581 normalized / 200 raw / 434 pairs; gained [243184], raw +[235304, 236240];
+  no losses; .rodata equal; 105 Source records. symbols fb2e04e0..., stripped 02a04fa4...
+- Harvest dir written: fees100/shared/harvest/fees-final-1/ (source.patch vs w580, symbols.so, candidate.so, measure.json,
+  NOTES.md, SHA256SUMS). Upstream main already matches ATA via a try block (fees-ata-prefix-integration, 582 frontier with
+  Extend); this is an alternative stable-Rust form.

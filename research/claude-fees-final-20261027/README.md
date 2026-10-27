@@ -44,7 +44,38 @@ Measurement uses the repository normalizer (`research/fees-composed-frontier188/
 `tools/measure.py` (counts, gained/lost sets) and `tools/datacheck.py` (readonly bytes, Source records,
 direct-call agreement). Outputs are in `measurement/`.
 
-## Associated-token validator (`243184`): the remaining difference is one IR block
+## Associated-token validator recovered with stable Rust (`ata-letelse`, 581 / 200)
+
+On top of w580, one line of `instructions/fee_sharing/mod.rs` turns the creation `if` into a labeled block whose
+guard is a `let`-`else` (Source lines 273/278/299/306 unchanged; the old closing brace closes the block):
+
+```rust
+    'create: { let true = associated_account.owner == &anchor_lang::system_program::ID else { break 'create };
+```
+
+| | w580 | ata-letelse |
+| --- | ---: | ---: |
+| Normalized | 580 | **581** (gained `243184`, 6,080 bytes) |
+| Raw-local | 198 | **200** (gained `235304`, `236240`) |
+| Unique pairs | 433 | 434 |
+| Lost windows | - | none |
+
+`.rodata` (21,079 bytes) and all 105 Source records stay equal. Stripped
+`02a04fa4cde2fbf28d59bab4aeec1a585c5f1f7aa1d6248cd6c5d5997b36db06`, symbols
+`fb2e04e0a3234b22c4ac1f3bac672a2f436b78ec9ec598819bab7ec4d527da3c` (`builds/ata-letelse/`).
+Upstream main already matches this window with a `try` block (`#![feature(try_blocks)]`,
+`research/fees-ata-prefix-integration`); this form needs no feature flag and is an independent confirmation of the
+mechanism below, not an extra window for the current 582 frontier.
+
+Why: with `if cond { .. }` the condition temporary lives across the body, so the `require!` error path's first exit
+block is the empty `StorageDead(cond)` node and SimplifyCFG deletes it; the success block then follows the invoke
+test and ISel emits `jne err`. With `let true = cond else { break 'create };` the temporary dies before the body,
+the `require!`/`invoke?` exits go straight to the non-empty `StorageDead(expected)` return join, that block keeps
+the slot after the invoke test, and ISel emits the original `jeq ok; ja err`. Native IR screens (`ata-mechanism/
+native-screens.jsonl`): `if cond {} else { break 'create; }` also matches; `if !cond { break }` flips the owner-check
+polarity (6,072 B); closure/nested-fn isolation reshapes the body (6,288 B).
+
+## Associated-token validator (`243184`): the IR-level proof
 
 The candidate body (6,072 bytes) equals the original (6,080 bytes) except at the `invoke` result
 test: original `jeq r2,r1,+1; ja err` versus candidate `jne r2,r1,err`. Native platform-tools

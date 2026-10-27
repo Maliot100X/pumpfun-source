@@ -3,3 +3,5 @@ source.patch -text -whitespace
 overrides/** -text -whitespace
 *.so.gz binary
 *.ll.gz binary
+ata-source.patch -text -whitespace
+overrides-ata/** -text -whitespace

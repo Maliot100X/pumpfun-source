@@ -54,3 +54,23 @@ VARIANTS = {
  'nested-create-block': lambda r: edit(r, [(BLOCK_OLD, BLOCK_OLD.replace('AccountNotInitialized);', 'AccountNotInitialized); {')), (CALLS, CALLS.replace(')?;\n    }', ')?; }\n    }'))]),
  'helper-plain': lambda r: edit(r, [(HELPER_CALL_OLD, HELPER_CALL_NEW)], HELPER_FN),
 }
+
+def lines_edit(root, repl):
+    """repl: {line_number: new_text} (1-based, whole-line replacement, line count preserved)."""
+    p = Path(root) / MOD; L = p.read_text().split('\n')
+    for n, t in repl.items():
+        assert '\n' not in t
+        L[n - 1] = t
+    p.write_text('\n'.join(L))
+SEEDS_EXPR = "    if associated_account.key() != expected { Err(error!(anchor_lang::error::ErrorCode::ConstraintSeeds).with_pubkeys((associated_account.key(), expected))) } else {"
+VARIANTS['iso-closure'] = lambda r: lines_edit(r, {273: SEEDS_EXPR, 294: "    (|| -> Result<()> {", 307: "    Ok(()) })() }"})
+VARIANTS['iso-nested-fn'] = lambda r: lines_edit(r, {273: SEEDS_EXPR,
+    294: "    fn validate<'info>(associated_account: &AccountInfo<'info>, mint: &Pubkey, token_program: &Pubkey) -> Result<()> {",
+    307: "    Ok(()) } validate(associated_account, mint, token_program) }"})
+VARIANTS['iso-seeds-only'] = lambda r: lines_edit(r, {273: SEEDS_EXPR, 307: "    Ok(()) }"})
+# Surgery J (bb43 = common error-return join moved right after the invoke block) is an exact match: the original's
+# require!/invoke? exits must target the StorageDead(expected) node directly, i.e. no if-condition temp node between.
+VARIANTS['label-ne-break'] = lambda r: lines_edit(r, {274: "    'create: { if associated_account.owner != &anchor_lang::system_program::ID { break 'create; }", 293: "    }"})
+VARIANTS['label-eq-else-break'] = lambda r: lines_edit(r, {274: "    'create: { if associated_account.owner == &anchor_lang::system_program::ID {} else { break 'create; }", 293: "    }"})
+VARIANTS['match-const-pattern'] = lambda r: lines_edit(r, {274: "    match *associated_account.owner { anchor_lang::system_program::ID => {", 293: "    } _ => {} }"})
+VARIANTS['let-else-break'] = lambda r: lines_edit(r, {274: "    'create: { let true = associated_account.owner == &anchor_lang::system_program::ID else { break 'create };", 293: "    }"})

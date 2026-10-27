@@ -23,6 +23,9 @@ PARENT = ROOT / 'research/fees-social-claim-v2-recovery'
 STRIPPED = 'ca7f3c9711fa3694c6d57399efc9a3d36ae6183757c29e20034c3f298eb0ac81'
 SYMBOLS = '08c8b0d3b6e491886c63b283823072391201e8843496730b0f1b879a66e93125'
 OVERRIDES = ['programs/pump-fees/src/instructions/withdraw.rs', 'programs/pump-fees/src/withdrawal.rs']
+ATA_STRIPPED = '02a04fa4cde2fbf28d59bab4aeec1a585c5f1f7aa1d6248cd6c5d5997b36db06'
+ATA_SYMBOLS = 'fb2e04e0a3234b22c4ac1f3bac672a2f436b78ec9ec598819bab7ec4d527da3c'
+ATA_OVERRIDE = 'programs/pump-fees/src/instructions/fee_sharing/mod.rs'
 sha = lambda b: hashlib.sha256(b).hexdigest()
 
 
@@ -76,9 +79,43 @@ def verify():
     assert counters[0] == counters[1] and sum(counters[0].values()) == 105
     runtime = json.loads((HERE / 'runtime/w580-summary.json').read_text())
     assert runtime['candidate_sha256'] == STRIPPED and runtime['case_count'] == 17331 and not runtime['mismatches']
+    ata = verify_ata(w, loc, original, symbols)
     return dict(normalized=len(cn), raw_local=len(cr), unique_pairs=pairs, gained=sorted(cn - pn), lost=sorted(pn - cn),
                 rodata_equal=True, source_records=105, runtime_cases=runtime['case_count'],
-                candidate_sha256=STRIPPED, symbols_sha256=SYMBOLS, whole_elf_equal=False)
+                candidate_sha256=STRIPPED, symbols_sha256=SYMBOLS, whole_elf_equal=False, ata_letelse=ata)
+
+
+def verify_ata(w, loc, original, w580_symbols):
+    """w580 + labeled-block let-else ATA form: 581 normalized / 200 raw-local, gained 243184 (raw +235304, +236240)."""
+    stripped = gzip.decompress((HERE / 'builds/ata-letelse/candidate.so.gz').read_bytes())
+    symbols = gzip.decompress((HERE / 'builds/ata-letelse/symbols.so.gz').read_bytes())
+    assert sha(stripped) == ATA_STRIPPED and sha(symbols) == ATA_SYMBOLS
+    r = json.loads((HERE / 'builds/ata-letelse/result.json').read_text())
+    assert r['candidate_sha256'] == ATA_STRIPPED and r['symbols_sha256'] == ATA_SYMBOLS and r['exit_code'] == 0
+    bn, br, _ = windows_summary(w, original, w580_symbols)
+    an, ar, pairs = windows_summary(w, original, symbols)
+    assert len(an) == 581 and len(ar) == 200 and pairs == 434
+    assert sorted(an - bn) == [243184] and not (bn - an)
+    assert sorted(ar - br) == [235304, 236240] and not (br - ar)
+    assert w.m.section_data(original, '.rodata') == w.m.section_data(symbols, '.rodata')
+    counters = []
+    for image in (original, symbols):
+        c = Counter()
+        for address, kind in w.m.relocations(image):
+            if kind & 0xffffffff != 8:
+                continue
+            try:
+                c[loc.location(w, image, address)] += 1
+            except (AssertionError, ValueError, StopIteration, struct.error, UnicodeDecodeError):
+                pass
+        counters.append(c)
+    assert counters[0] == counters[1] and sum(counters[0].values()) == 105
+    patched = (HERE / 'overrides-ata' / ATA_OVERRIDE).read_text().split('\n')
+    assert patched[273].startswith("    'create: { let true = associated_account.owner == &anchor_lang::system_program::ID else { break 'create };")
+    for line in (273, 278, 299, 306):
+        assert 'require' in patched[line - 1]
+    return dict(normalized=len(an), raw_local=len(ar), unique_pairs=pairs, gained=sorted(an - bn),
+                gained_raw=sorted(ar - br), lost=sorted(bn - an), candidate_sha256=ATA_STRIPPED, symbols_sha256=ATA_SYMBOLS)
 
 
 def materialize(dest):
