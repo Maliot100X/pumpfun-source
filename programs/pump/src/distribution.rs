@@ -42,12 +42,12 @@ impl AccountDeserialize for DistributionCurve{
 #[derive(Accounts)]
 pub struct DistributeCreatorFees<'info>{
  pub mint:InterfaceAccount<'info,anchor_spl::token_interface::Mint>,
- #[account(seeds=[b"bonding-curve",mint.key().as_ref()],bump,constraint=bonding_curve.creator==sharing_config.key() @ PumpError::BondingCurveAndSharingConfigCreatorMismatch)]pub bonding_curve:Account<'info,BondingCurve>,
+ #[account(seeds=[b"bonding-curve",mint.key().as_ref()],bump,constraint=bonding_curve.quote_mint==Pubkey::default() @ PumpError::UnsupportedQuoteMint,constraint=bonding_curve.creator==sharing_config.key() @ PumpError::BondingCurveAndSharingConfigCreatorMismatch)]pub bonding_curve:Account<'info,BondingCurve>,
  #[account(seeds=[b"sharing-config",mint.key().as_ref()],bump,seeds::program=FEES,has_one=mint @ PumpError::MintDoesNotMatchBondingCurve)]pub sharing_config:Account<'info,SharingConfig>,
  #[account(mut,seeds=[b"creator-vault",sharing_config.key().as_ref()],bump)]pub creator_vault:AccountInfo<'info>,
  pub system_program:Program<'info,System>,
  /// CHECK: event PDA.
- #[account(seeds=[b"__event_authority"],bump)]pub event_authority:UncheckedAccount<'info>,
+ #[account(seeds=[b"__event_authority"],bump)]pub event_authority:AccountInfo<'info>,
  pub program:Program<'info,crate::program::PumpRecovered>,
 }
 pub fn execute<'info>(ctx:Context<'_, '_, '_, 'info,DistributeCreatorFees<'info>>)->Result<DistributeCreatorFeesEvent>{
@@ -58,7 +58,7 @@ pub fn execute<'info>(ctx:Context<'_, '_, '_, 'info,DistributeCreatorFees<'info>
  let (transfers,minimum_distributable,_,available)=get_distribution_amounts(&rent,&a.sharing_config.shareholders,ctx.remaining_accounts,&a.creator_vault)?;
  let eligible=available>=minimum_distributable;let mut distributed=0u64;
  let bump=[ctx.bumps.creator_vault];let seeds:&[&[u8]]=&[b"creator-vault",a.bonding_curve.creator.as_ref(),&bump];
- if eligible{for (amount,recipient) in transfers{
+ if eligible{for ((amount,_),recipient) in transfers.into_iter().zip(ctx.remaining_accounts){
   if amount>0{anchor_lang::system_program::transfer(CpiContext::new_with_signer(a.system_program.to_account_info(),anchor_lang::system_program::Transfer{from:a.creator_vault.to_account_info(),to:recipient.clone()},&[seeds]),amount)?;distributed=distributed.checked_add(amount).ok_or(error!(PumpError::Overflow))?;}
  }}
  let event=DistributeCreatorFeesEvent{timestamp:Clock::get()?.unix_timestamp,mint:a.mint.key(),bonding_curve:a.bonding_curve.key(),sharing_config:a.sharing_config.key(),admin:a.sharing_config.admin,shareholders:a.sharing_config.shareholders.clone(),distributed,quote_mint:Pubkey::default()};if eligible{emit!(event.clone());emit_cpi!(event.clone());}Ok(event)
@@ -74,12 +74,12 @@ pub struct DistributeCreatorFeesV2<'info>{
  #[account(mut,seeds=[b"creator-vault",sharing_config.key().as_ref()],bump)]pub creator_vault:AccountInfo<'info>,
  pub system_program:Program<'info,System>,
  /// CHECK: Event authority.
- #[account(seeds=[b"__event_authority"],bump)]pub event_authority:UncheckedAccount<'info>,
+ #[account(seeds=[b"__event_authority"],bump)]pub event_authority:AccountInfo<'info>,
  pub program:Program<'info,crate::program::PumpRecovered>,
  /// CHECK: Nonlegacy branch parses token data manually.
  #[account(mut,seeds=[creator_vault.key().as_ref(),quote_token_program.key().as_ref(),quote_mint.key().as_ref()],bump,seeds::program=associated_token_program.key())]pub creator_vault_quote_token_account:UncheckedAccount<'info>,
- #[account(constraint=quote_mint.key()==if bonding_curve.quote_mint==Pubkey::default()||bonding_curve.quote_mint==anchor_spl::token::spl_token::native_mint::ID{anchor_spl::token::spl_token::native_mint::ID}else{bonding_curve.quote_mint} @ PumpError::MintDoesNotMatchBondingCurve)]
- pub quote_mint:InterfaceAccount<'info,anchor_spl::token_interface::Mint>,
+ #[account(constraint=quote_mint.key()==bonding_curve.quote_mint||(bonding_curve.quote_mint==Pubkey::default()&&quote_mint.key()==anchor_spl::token::spl_token::native_mint::ID) @ PumpError::MintDoesNotMatchBondingCurve)]
+ pub quote_mint:Box<InterfaceAccount<'info,anchor_spl::token_interface::Mint>>,
  pub quote_token_program:Interface<'info,anchor_spl::token_interface::TokenInterface>,
  pub associated_token_program:Program<'info,anchor_spl::associated_token::AssociatedToken>,
 }
@@ -95,7 +95,7 @@ pub fn execute_v2<'info>(ctx:Context<'_, '_, '_, 'info,DistributeCreatorFeesV2<'
   let rent=Rent::get()?;
   let (transfers,minimum_distributable,_,available)=get_distribution_amounts(&rent,&a.sharing_config.shareholders,ctx.remaining_accounts,&a.creator_vault)?;
   eligible=available>=minimum_distributable;
-  if eligible{for (amount,recipient) in transfers{
+  if eligible{for ((amount,_),recipient) in transfers.into_iter().zip(ctx.remaining_accounts){
    if amount>0{anchor_lang::system_program::transfer(CpiContext::new_with_signer(a.system_program.to_account_info(),anchor_lang::system_program::Transfer{from:a.creator_vault.to_account_info(),to:recipient.clone()},&[seeds]),amount)?;}
    distributed=distributed.checked_add(amount).ok_or(error!(PumpError::Overflow))?;
   }}
@@ -116,7 +116,7 @@ pub fn execute_v2<'info>(ctx:Context<'_, '_, '_, 'info,DistributeCreatorFeesV2<'
  let event=DistributeCreatorFeesEvent{timestamp:Clock::get()?.unix_timestamp,mint:a.mint.key(),bonding_curve:a.bonding_curve.key(),sharing_config:a.sharing_config.key(),admin:a.sharing_config.admin,shareholders:a.sharing_config.shareholders.clone(),distributed,quote_mint:if native{Pubkey::default()}else{a.quote_mint.key()}};if eligible{emit!(event.clone());emit_cpi!(event.clone());}Ok(event)
 }
 
-pub(crate) fn get_distribution_amounts<'a,'info>(rent:&Rent,shares:&[Shareholder],recipients:&'a [AccountInfo<'info>],creator_vault:&AccountInfo<'info>)->Result<(Vec<(u64,&'a AccountInfo<'info>)>,u64,u64,u64)>{
+pub(crate) fn get_distribution_amounts<'info>(rent:&Rent,shares:&[Shareholder],recipients:&[AccountInfo<'info>],creator_vault:&AccountInfo<'info>)->Result<(Vec<(u64,u64)>,u64,u64,u64)>{
  let reserve=rent.minimum_balance(0);
  let available=creator_vault.lamports().saturating_sub(reserve);
  let mut transfers=Vec::with_capacity(shares.len());let mut minimum=0u64;
@@ -133,7 +133,7 @@ pub(crate) fn get_distribution_amounts<'a,'info>(rent:&Rent,shares:&[Shareholder
   let threshold=deficit.checked_mul(10000).ok_or_else(||error!(PumpError::Overflow))?.checked_add(share_bps.saturating_sub(1)).ok_or_else(||error!(PumpError::Overflow))?/share_bps;
   minimum=minimum.max(threshold);
   let amount=available.checked_mul(share_bps).ok_or_else(||error!(PumpError::Overflow))?/10000;
-  transfers.push((amount,recipient));
+  transfers.push((amount,deficit));
  }
  Ok((transfers,minimum,reserve.saturating_add(minimum),available))
 }

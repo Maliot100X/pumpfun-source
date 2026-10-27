@@ -38,14 +38,19 @@ fn ancestor(account: &AccountInfo<'_>, mint: &Pubkey) -> Result<BondingCurve> {
     decode_curve(&data)
 }
 
+#[inline(never)]
+pub(super) fn control_account(account: &AccountInfo<'_>, mint: &Pubkey) -> Result<Option<u64>> {
+    let data = account.try_borrow_data()?;
+    control_entry(&data, mint)
+}
+
 pub(super) fn control_entry(data: &[u8], mint: &Pubkey) -> Result<Option<u64>> {
     require!(data.len() >= 108, PumpError::InvalidQuoteControl);
     require!(data[..8] == CONTROL_DISC, PumpError::InvalidQuoteControl);
     let count = u32::from_le_bytes(data[104..108].try_into().unwrap()) as usize;
-    // The original 64-bit size operation cannot overflow for a u32 count.
-    let end = 108 + 40 * count;
-    require!(end <= data.len(), PumpError::InvalidQuoteControl);
-    for entry in data[108..end].chunks_exact(40) {
+    let end = crate::quote_control::state::QuoteControl::space(count)?;
+    let entries = data.get(108..end).ok_or_else(|| error!(PumpError::InvalidQuoteControl))?;
+    for entry in entries.chunks_exact(40) {
         if entry[..32] == mint.to_bytes() { return Ok(Some(u64_at(entry, 32))); }
     }
     Ok(None)

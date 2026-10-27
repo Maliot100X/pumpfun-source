@@ -60,7 +60,7 @@ pub fn execute<'info>(ctx:Context<'_,'_,'_,'info,CreateV2<'info>>,name:String,sy
    let control=&ctx.remaining_accounts[3];let expected=Pubkey::find_program_address(&[b"quote-control"],&crate::ID).0;
    require_keys_eq!(control.key(),expected,PumpError::InvalidQuoteControl);
    require_keys_eq!(*control.owner,crate::ID,PumpError::InvalidQuoteControl);
-   let entry={let data=control.try_borrow_data()?;nested_create::control_entry(&data,mint.key)?};
+   let entry=nested_create::control_account(control,mint.key)?;
    if let Some(reserves)=entry {(reserves,true)} else {
     let (reserves,nested_depth)=nested_create::walk(&a.global,ctx.remaining_accounts)?;
     depth=nested_depth;

@@ -22,7 +22,12 @@ pub fn execute(ctx: Context<ExtendAccount>) -> Result<()> {
             _ => return err!(PumpError::AccountTypeNotSupported),
         }
     };
-    if current >= size {
+    if current == size {
+        msg!("Account already has the correct size");
+        return Ok(());
+    }
+    if current > size {
+        msg!("Account already has more than {} bytes: {}", size, current);
         return Ok(());
     }
     let rent = Rent::get()?;
@@ -30,16 +35,18 @@ pub fn execute(ctx: Context<ExtendAccount>) -> Result<()> {
         .minimum_balance(size)
         .checked_sub(rent.minimum_balance(current))
         .ok_or(PumpError::Overflow)?;
-    anchor_lang::system_program::transfer(
-        CpiContext::new(
-            ctx.accounts.system_program.to_account_info(),
-            anchor_lang::system_program::Transfer {
-                from: ctx.accounts.user.to_account_info(),
-                to: info.clone(),
-            },
-        ),
-        delta,
-    )?;
+    if delta > 0 {
+        anchor_lang::system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.user.to_account_info(),
+                    to: info.clone(),
+                },
+            ),
+            delta,
+        )?;
+    }
     info.realloc(size, false)?;
     let event = ExtendAccountEvent {
         timestamp: Clock::get()?.unix_timestamp,

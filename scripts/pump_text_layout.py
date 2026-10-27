@@ -14,7 +14,10 @@ SUFFIXES = {'.o': 'object', '.obj': 'object', '.a': 'archive', '.rlib': 'archive
 sha = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def check_script(default, script):
+def check_script(default, script, data_certificate=None):
+    if data_certificate:
+        import pump_data_order
+        script = pump_data_order.check_combined(script, pump_data_order.load_certificate(data_certificate))
     assert default.count(RULE) == 1
     head, tail = default.split(RULE)
     opening, closing = head + '  .text : {\n', '\n    *(.text*)\n  } :text' + tail
@@ -26,10 +29,17 @@ def check_script(default, script):
     return len(lines)
 
 
-def configure(order, out, sdk, crate_name, physical_wrapper):
+def configure(order, out, sdk, crate_name, physical_wrapper, data_certificate=None):
     default = (HERE / 'pump_text_layout_default.ld').read_text()
     script = Path(order).read_text()
     count = check_script(default, script)
+    certificate_copy = None
+    if data_certificate:
+        import pump_data_order
+        certificate = pump_data_order.load_certificate(data_certificate)
+        script = pump_data_order.render(script, certificate)
+        certificate_copy = Path(out) / 'data-order-certificate.json'
+        certificate_copy.write_bytes(Path(data_certificate).read_bytes())
     dest = Path(out) / 'ordered.ld'
     dest.write_text(script)
     host = {'arm64': 'aarch64-apple-darwin', 'x86_64': 'x86_64-apple-darwin'}[platform.machine()]
@@ -37,6 +47,8 @@ def configure(order, out, sdk, crate_name, physical_wrapper):
     assert linker.is_file()
     files = [HERE / name for name in ['pump_text_layout.py', 'pump_text_layout_rustc.py',
              'pump_text_layout_linker.py', 'pump_text_layout_default.ld']]
+    if data_certificate:
+        files += [HERE / name for name in pump_data_order.implementation_hashes()]
     record = {'scope': 'Optional main-only compiler/link recipe; no original ELF input or byte patching.',
               'selectors': count, 'script': str(dest), 'script_sha256': sha(dest),
               'helper_sha256': {str(p): sha(p) for p in files},
@@ -48,6 +60,9 @@ def configure(order, out, sdk, crate_name, physical_wrapper):
            'PUMP_TEXT_PHYSICAL_WRAPPER': str(physical_wrapper),
            'PUMP_TEXT_LINKER': str(linker), 'PUMP_TEXT_SCRIPT': str(dest),
            'PUMP_TEXT_RECORD_DIR': str(Path(out) / 'link')}
+    if certificate_copy:
+        env['PUMP_DATA_ORDER_CERTIFICATE'] = str(certificate_copy)
+        record['data_order_certificate'] = {'path': str(certificate_copy), 'sha256': sha(certificate_copy)}
     record['environment'] = env
     return env, record
 
@@ -107,7 +122,8 @@ def prepare_link(args, env):
     directory.mkdir(parents=True, exist_ok=True)
     default = (HERE / 'pump_text_layout_default.ld').read_text()
     replacement = Path(env['PUMP_TEXT_SCRIPT'])
-    check_script(default, replacement.read_text())
+    certificate_path = env.get('PUMP_DATA_ORDER_CERTIFICATE')
+    check_script(default, replacement.read_text(), certificate_path)
     records = {}
     for index, (path, kind) in enumerate(declared_inputs(args).items()):
         data = Path(path).read_bytes()
@@ -139,6 +155,9 @@ def prepare_link(args, env):
     assert scripts == 1
     after.append('-Map=' + str(directory / 'link.map'))
     check_bindings(args, records)
+    if certificate_path:
+        import pump_data_order
+        pump_data_order.check_link(args, records, pump_data_order.load_certificate(certificate_path))
     record = {'input_binding_version': 1, 'incoming': args, 'forwarded': after,
               'link_inputs': records, 'real_linker': env['PUMP_TEXT_LINKER'],
               'real_linker_sha256': sha(env['PUMP_TEXT_LINKER']),
@@ -148,12 +167,20 @@ def prepare_link(args, env):
 
 
 def finish(record):
+    certificate = record.get('data_order_certificate')
+    if certificate:
+        assert sha(certificate['path']) == certificate['sha256']
+        import pump_data_order
+        cert = pump_data_order.load_certificate(certificate['path'])
+        pump_data_order.check_combined(Path(record['script']).read_text(), cert)
     assert sha(record['script']) == record['script_sha256']
     assert sha(record['real_linker']) == record['real_linker_sha256']
     assert sha(record['external_wrapper']) == record['external_wrapper_sha256']
     assert all(sha(path) == digest for path, digest in record['helper_sha256'].items())
     inv = json.loads(Path(record['link_receipt']).read_text())
     check_bindings(inv['incoming'], inv['link_inputs'])
+    if certificate:
+        pump_data_order.check_link(inv['incoming'], inv['link_inputs'], cert)
     assert inv['replacement_script_sha256'] == record['script_sha256']
     assert inv['real_linker_sha256'] == record['real_linker_sha256']
     # Verify the actual forwarded file operands point at the bound copies.
