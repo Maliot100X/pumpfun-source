@@ -106,10 +106,7 @@ pub fn claim(ctx: Context<ClaimTokenIncentives>) -> Result<()> {
     let event_signer: &[&[u8]] = &[b"__event_authority", &event_bump];
     invoke_signed(
         &ix,
-        &[
-            ctx.accounts.event_authority.to_account_info(),
-            ctx.accounts.program.to_account_info(),
-        ],
+        &[ctx.accounts.event_authority.to_account_info()],
         &[event_signer],
     )?;
     Ok(())

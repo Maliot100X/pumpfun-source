@@ -124,8 +124,10 @@ pub mod pump_recovered {
     pub fn collect_creator_fee(ctx:Context<CollectCreatorFee>)->Result<()>{
       require!(*ctx.accounts.creator.owner!=crate::distribution::FEES,PumpError::UnableToDistributeCreatorVaultMigratedToSharingConfig);
       if ctx.accounts.creator.executable{msg!("Creator account is executable, so it cannot receive lamports");return Ok(());}
-      let amount=ctx.accounts.creator_vault.lamports().saturating_sub(Rent::get()?.minimum_balance(0));
+      let rent=Rent::get()?;
+      let amount=ctx.accounts.creator_vault.lamports().saturating_sub(rent.minimum_balance(0));
       if amount==0{msg!("No creator fee to collect");return Ok(());}
+      if ctx.accounts.creator.lamports().saturating_add(amount)<rent.minimum_balance(ctx.accounts.creator.data_len()){msg!("Creator account does not have enough rent-exemption lamports");return Ok(());}
       let creator=ctx.accounts.creator.key();let bump=[ctx.bumps.creator_vault];let seeds:&[&[u8]]=&[b"creator-vault",creator.as_ref(),&bump];
       anchor_lang::system_program::transfer(CpiContext::new_with_signer(ctx.accounts.system_program.to_account_info(),anchor_lang::system_program::Transfer{from:ctx.accounts.creator_vault.to_account_info(),to:ctx.accounts.creator.to_account_info()},&[seeds]),amount)?;
       let event=CollectCreatorFeeEvent{timestamp:Clock::get()?.unix_timestamp,creator,creator_fee:amount,quote_mint:Pubkey::default()};emit!(event.clone());emit_cpi!(event);Ok(())
