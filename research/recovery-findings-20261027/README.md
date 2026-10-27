@@ -29,8 +29,10 @@ fix patch: [`recovery/mayhem-error-enum.patch.txt`](recovery/mayhem-error-enum.p
 
 The patch targets `programs/mayhem/src/*` — **confirmed to be the canonical build source** via
 the committed candidate's `recorded-build-inputs.json` / `source14.json` (the 12-file tree,
-not the stray 18-file root `src/`). So it is ready to land + validate through the mayhem
-root-config build.
+not the stray 18-file root `src/`). **Now compile-validated** on the committed v1.54 recipe
+(builds clean; measured byte delta in [`recovery/mayhem-enum-validation.md`](recovery/mayhem-enum-validation.md)):
+it fixes the bug and nudges `.text` structural match +0.6pp toward the original, with only
+marginal whole-binary movement (mayhem's gap is dominated by ~21% missing code).
 
 ## Measured byte win (reproducible)
 **fees path-string recovery: 4 → 10 of 20** matching `programs/pump-fees/src/*.rs` strings,
