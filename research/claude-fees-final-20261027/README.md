@@ -74,6 +74,16 @@ MIR drop-tree sharing explains why simple scoping changes cannot do this: every 
 forms (instruction as call temporary, `*owner == ID`, `System::id()` comparison, nested create block)
 all keep the success block adjacent (`ata/results.jsonl` summary in PROGRESS.md).
 
+## Verify (no rebuild)
+
+```sh
+python3 -B research/claude-fees-final-20261027/verify.py
+python3 -B research/claude-fees-final-20261027/verify.py --materialize /abs/new/w580
+```
+
+The verifier decompresses both ELFs, checks their SHA-256, re-measures 580/198 with the repository
+normalizer against the parent's published symbols ELF, and checks `.rodata` and the 105 Source records.
+
 ## Reproduce
 
 ```sh

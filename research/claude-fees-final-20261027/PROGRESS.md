@@ -56,3 +56,13 @@ Need IR where the if-internal error-exit join keeps a lifetime.end. Drop-tree sh
 shared by every `return` in its scope, so plain scoping cannot produce expG. Candidates to try: forms where the
 ConstraintSeeds check and post-if validation do not use the function's return drop tree (expression-valued if/else,
 tail helper), or an if-let/match whose scrutinee temp is a surviving alloca with a coloring-neutral range.
+
+## Step 3: packet verify path + ATA isolation screens
+- `python3 -B research/claude-fees-final-20261027/verify.py` re-measures the gzipped ELFs statically: 580/198/433 pairs,
+  gained [249264], lost none vs the parent's published symbols ELF, .rodata equal, 105 Source records, runtime summary bound.
+  `--materialize DIR` = parent materializer + the two overrides; tested equal to the built c2/w580 tree.
+- Committed 6c1a26088 (w580 packet); this commit adds verify.py.
+- ATA drop-tree isolation screens (native IR + llc): iso-closure 6288 B, iso-nested-fn 6288 B (both reshape the body,
+  frame differs @24); iso-seeds-only 6072 (branch unchanged, as predicted while post-if returns still share expected).
+- Upstream main now integrates Withdraw (18431203e). Coordinator: Fees session owns integration; this lane = ATA only.
+  ATA gains go to the Fees session harvest dir fees100/shared/harvest/fees-final-<n>/ and to this branch.
