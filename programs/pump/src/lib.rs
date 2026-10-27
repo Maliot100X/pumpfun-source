@@ -62,6 +62,8 @@ pub use trade::*;
 pub mod quote_control;
 pub use quote_control::*;
 
+declare_program!(pump_fees);
+
 declare_id!("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
 
 #[program]
@@ -522,6 +524,23 @@ impl Global {
      let slot=self.whitelisted_quote_mints.iter_mut().find(|key|**key==quote_mint).ok_or_else(||error!(PumpError::QuoteMintNotWhitelisted))?;*slot=Pubkey::default();Ok(())
         }
 }
+/// Split protocol fees after the curve payment, preserving the buyback invariants.
+#[inline(never)]
+pub(crate) fn split_protocol_fee(
+    global: &crate::Global,
+    protocol_fee: u64,
+    is_mayhem_mode: bool,
+) -> (u64, u64) {
+    if is_mayhem_mode {
+        return (0, protocol_fee);
+    }
+    let buyback_fee = u64::try_from(global.buyback_basis_points as u128 * protocol_fee as u128 / 10000)
+        .expect("buyback fee is at most protocol_fee");
+    let remaining = protocol_fee.checked_sub(buyback_fee)
+        .expect("buyback_fee never exceeds protocol_fee");
+    (buyback_fee, remaining)
+}
+
 fn update_global_authority_handler(ctx:Context<UpdateGlobalAuthority>)->Result<()>{
     ctx.accounts.global.authority=ctx.accounts.new_authority.key();
     let event=UpdateGlobalAuthorityEvent{global:ctx.accounts.global.key(),authority:ctx.accounts.authority.key(),new_authority:ctx.accounts.new_authority.key(),timestamp:Clock::get()?.unix_timestamp};
@@ -646,4 +665,51 @@ pub mod user_quote_payments {
         )
     }
 
+}
+
+use crate::trade_types::Shareholder;
+
+#[event]
+#[derive(Clone)]
+pub struct CreateEvent {pub name:String,pub symbol:String,pub uri:String,pub mint:Pubkey,pub bonding_curve:Pubkey,pub user:Pubkey,pub creator:Pubkey,pub timestamp:i64,pub virtual_token_reserves:u64,pub virtual_sol_reserves:u64,pub real_token_reserves:u64,pub token_total_supply:u64,pub token_program:Pubkey,pub is_mayhem_mode:bool,pub is_cashback_enabled:bool,pub quote_mint:Pubkey,pub virtual_quote_reserves:u64,pub creator_fee_bps:u64,pub is_holder_reward:bool,pub depth:u8}
+
+#[event]
+#[derive(Clone)]
+pub struct TradeEvent {
+    pub mint: Pubkey,
+    pub sol_amount: u64,
+    pub token_amount: u64,
+    pub is_buy: bool,
+    pub user: Pubkey,
+    pub timestamp: i64,
+    pub virtual_sol_reserves: u64,
+    pub virtual_token_reserves: u64,
+    pub real_sol_reserves: u64,
+    pub real_token_reserves: u64,
+    pub fee_recipient: Pubkey,
+    pub fee_basis_points: u64,
+    pub fee: u64,
+    pub creator: Pubkey,
+    pub creator_fee_basis_points: u64,
+    pub creator_fee: u64,
+    pub track_volume: bool,
+    pub total_unclaimed_tokens: u64,
+    pub total_claimed_tokens: u64,
+    pub current_sol_volume: u64,
+    pub last_update_timestamp: i64,
+    pub ix_name: String,
+    pub mayhem_mode: bool,
+    pub cashback_fee_basis_points: u64,
+    pub cashback: u64,
+    pub buyback_fee_basis_points: u64,
+    pub buyback_fee: u64,
+    pub shareholders: Vec<Shareholder>,
+    pub quote_mint: Pubkey,
+    pub quote_amount: u64,
+    pub virtual_quote_reserves: u64,
+    pub real_quote_reserves: u64,
+    pub holder_rewards_bps: u64,
+    pub holder_rewards: u64,
+    pub creator_fee_unclaimed: u64,
+    pub unparsed_trailing_field: u64,
 }

@@ -34,9 +34,34 @@ pub(crate) fn collect<'info>(
  };
  if amount==0{msg!("No creator fee to collect");return Ok(None);}
  let creator_key=creator.key();let bump=[creator_vault_bump];let seeds:&[&[u8]]=&[b"creator-vault",creator_key.as_ref(),&bump];
- if native{anchor_lang::system_program::transfer(CpiContext::new_with_signer(system_program.to_account_info(),anchor_lang::system_program::Transfer{from:creator_vault.clone(),to:creator.clone()},&[seeds]),amount)?;}
- else{anchor_spl::token_interface::transfer_checked(CpiContext::new_with_signer(quote_token_program.to_account_info(),anchor_spl::token_interface::TransferChecked{from:creator_vault_token_account.clone(),mint:quote_mint.clone(),to:creator_token_account.clone(),authority:creator_vault.clone()},&[seeds]),amount,decimals)?;}
+ if native{transfer_native(system_program.as_ref(),creator_vault,creator,amount,&[seeds])?;}
+ else{transfer_tokens(quote_token_program,creator_vault_token_account,creator_token_account,creator_vault,decimals,quote_mint,amount,&[seeds])?;}
  Ok(Some((amount,if native{Pubkey::default()}else{quote_mint.key()})))
+}
+
+#[inline(never)]
+pub(crate) fn transfer_native<'info>(
+ system_program:&AccountInfo<'info>,source:&AccountInfo<'info>,destination:&AccountInfo<'info>,
+ amount:u64,signer_seeds:&[&[&[u8]]],
+)->Result<()>{
+ if amount==0{return Ok(());}
+ anchor_lang::system_program::transfer(
+  CpiContext::new_with_signer(system_program.clone(),anchor_lang::system_program::Transfer{from:source.clone(),to:destination.clone()},signer_seeds),
+  amount,
+ )
+}
+
+pub fn transfer_tokens<'info>(
+ token_program:&Interface<'info,anchor_spl::token_interface::TokenInterface>,
+ source:&AccountInfo<'info>,destination:&AccountInfo<'info>,authority:&AccountInfo<'info>,
+ decimals:u8,mint:&AccountInfo<'info>,amount:u64,signer_seeds:&[&[&[u8]];1],
+)->Result<()>{
+ if amount==0{return Ok(());}
+ anchor_spl::token_interface::transfer_checked(
+  CpiContext::new_with_signer(token_program.to_account_info(),anchor_spl::token_interface::TransferChecked{
+   from:source.clone(),to:destination.clone(),authority:authority.clone(),mint:mint.clone(),
+  },signer_seeds),amount,decimals,
+ )
 }
 
 pub fn execute(ctx:Context<CollectCreatorFeeV2>)->Result<()>{

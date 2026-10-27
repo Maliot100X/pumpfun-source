@@ -23,19 +23,4 @@ pub(super) fn transfer_native<'info>(
     )
 }
 
-/// Split protocol fees after the curve payment, preserving the buyback invariants.
-#[inline(never)]
-pub(crate) fn split_protocol_fee(
-    global: &crate::Global,
-    protocol_fee: u64,
-    is_mayhem_mode: bool,
-) -> (u64, u64) {
-    if is_mayhem_mode {
-        return (0, protocol_fee);
-    }
-    let buyback_fee = u64::try_from(global.buyback_basis_points as u128 * protocol_fee as u128 / 10000)
-        .expect("buyback fee is at most protocol_fee");
-    let remaining = protocol_fee.checked_sub(buyback_fee)
-        .expect("buyback_fee never exceeds protocol_fee");
-    (buyback_fee, remaining)
-}
+pub(crate) use crate::split_protocol_fee;

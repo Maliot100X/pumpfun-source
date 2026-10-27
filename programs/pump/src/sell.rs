@@ -4,7 +4,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{self,Mint,TokenAccount,TokenInterface,TransferChecked};
 use crate::{Global,PumpError};
 use crate::trade_types::{BondingCurve,TradeEvent};
-const FEE_PROGRAM:Pubkey=anchor_lang::solana_program::pubkey!("pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ");
 
 #[derive(Clone)]pub struct LegacyCurve(pub BondingCurve,pub usize);
 impl std::ops::Deref for LegacyCurve{type Target=BondingCurve;fn deref(&self)->&BondingCurve{&self.0}}
@@ -12,12 +11,10 @@ impl std::ops::DerefMut for LegacyCurve{fn deref_mut(&mut self)->&mut BondingCur
 impl Owner for LegacyCurve{fn owner()->Pubkey{crate::ID}}
 impl AccountDeserialize for LegacyCurve{fn try_deserialize(buf:&mut &[u8])->Result<Self>{let len=buf.len();Ok(Self(BondingCurve::try_deserialize(buf)?,len))}fn try_deserialize_unchecked(buf:&mut &[u8])->Result<Self>{Self::try_deserialize(buf)}}
 impl AccountSerialize for LegacyCurve{fn try_serialize<W:std::io::Write>(&self,w:&mut W)->Result<()>{let mut b=Vec::new();self.0.try_serialize(&mut b)?;w.write_all(&b[..self.1.min(b.len())])?;Ok(())}}
-#[derive(Clone)]pub struct LegacyFeeConfig(pub crate::trade_types::FeeConfig);
-impl Owner for LegacyFeeConfig{fn owner()->Pubkey{FEE_PROGRAM}}
-impl AccountSerialize for LegacyFeeConfig{}
-impl AccountDeserialize for LegacyFeeConfig{fn try_deserialize(buf:&mut &[u8])->Result<Self>{if buf.len()<8{return err!(anchor_lang::error::ErrorCode::AccountDiscriminatorNotFound)}if buf[..8]!=[143,52,146,187,219,123,76,155]{return err!(anchor_lang::error::ErrorCode::AccountDiscriminatorMismatch)}Self::try_deserialize_unchecked(buf)}fn try_deserialize_unchecked(buf:&mut &[u8])->Result<Self>{let config=crate::trade_types::FeeConfig::deserialize(&mut &buf[8..]).map_err(|_|error!(anchor_lang::error::ErrorCode::AccountDidNotDeserialize))?;Ok(Self(config))}}
-#[derive(Clone)]pub struct LegacyFeesProgram;
-impl Id for LegacyFeesProgram{fn id()->Pubkey{FEE_PROGRAM}}
+pub use crate::pump_fees::{
+    accounts::FeeConfig as LegacyFeeConfig,
+    program::PumpFees as LegacyFeesProgram,
+};
 
 #[derive(Accounts)]
 pub struct LegacySell<'info>{
