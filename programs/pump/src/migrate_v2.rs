@@ -113,7 +113,7 @@ pub fn execute<'info>(ctx:Context<'_, '_, '_, 'info,MigrateV2<'info>>)->Result<(
  let pa=a.pool_authority.to_account_info();let user=a.user.to_account_info();let base_mint=a.base_mint.to_account_info();let sys=a.system_program.to_account_info();let tok=a.base_token_program.to_account_info();let qt=a.quote_token_program.to_account_info();let ata=a.associated_token_program.to_account_info();let am=a.pump_amm.to_account_info();let pool=a.pool.to_account_info();let pb=a.pool_base_token_account.to_account_info();let pq=a.pool_quote_token_account.to_account_info();let tmpb=a.pool_authority_mint_account.to_account_info();let tmpq=a.pool_authority_quote_account.to_account_info();let wsol=a.quote_mint.to_account_info();let lp=a.lp_mint.to_account_info();let ulp=a.user_pool_token_account.to_account_info();let t22=a.token_2022_program.to_account_info();let cfg=a.amm_global_config.to_account_info();let ev=a.pump_amm_event_authority.to_account_info();let wa=a.withdraw_authority.to_account_info();let cb=a.associated_base_bonding_curve.to_account_info();let rent=Rent::get()?;
  let mintkey=a.base_mint.key();let pab=[ctx.bumps.pool_authority];let pas:&[&[u8]]=&[b"pool-authority",mintkey.as_ref(),&pab];let curveb=[ctx.bumps.bonding_curve];let cs:&[&[u8]]=&[b"bonding-curve",mintkey.as_ref(),&curveb];
  // Original transfers migration liquidity to its signer PDA before paying CPI rents.
- if native{move_lamports(&curve,&pa,fee)?;}else if fee>0{call(&sys,&[(&user,true,true),(&pa,false,true)],{let mut v=2u32.to_le_bytes().to_vec();v.extend_from_slice(&fee.to_le_bytes());v},&[])?;}
+ if native{move_lamports(&curve,&pa,fee)?;}else{crate::migrate::native_payments::transfer_native(a.system_program.as_ref(),&a.user,&a.pool_authority,fee)?;}
  let quote_preexisting=*tmpq.owner==a.quote_token_program.key() && tmpq.data_len()>0;
  for (dest,wallet,m,tp) in [(&pb,&pool,&base_mint,&tok),(&pq,&pool,&wsol,&qt),(&tmpb,&pa,&base_mint,&tok),(&tmpq,&pa,&wsol,&qt)]{if native{create_associated_account(&ata,&pa,dest,wallet,m,&sys,tp,Some(&curve),&[pas])?;}else{create_associated_account(&ata,&user,dest,wallet,m,&sys,tp,None,&[])?;}}
 
@@ -126,7 +126,17 @@ pub fn execute<'info>(ctx:Context<'_, '_, '_, 'info,MigrateV2<'info>>)->Result<(
  let base=amount(&tmpb)?;let quote=quote_amount(&tmpq)?.checked_sub(quote_before).ok_or_else(||error!(PumpError::Overflow))?;
  let creator=a.bonding_curve.creator;let mut data=vec![233,146,209,142,207,104,64,188];data.extend_from_slice(&0u16.to_le_bytes());data.extend_from_slice(&base.to_le_bytes());data.extend_from_slice(&quote.to_le_bytes());data.extend_from_slice(creator.as_ref());data.push(mayhem as u8);data.push(a.bonding_curve.is_cashback_coin as u8);data.extend_from_slice(&a.bonding_curve.creator_fee_bps.to_le_bytes());data.push(a.bonding_curve.can_edit_creator_fee as u8);data.push(a.bonding_curve.is_holder_reward as u8);
  call(&am,&[(&pool,false,true),(&cfg,false,false),(&pa,true,true),(&base_mint,false,false),(&wsol,false,false),(&lp,false,true),(&tmpb,false,true),(&tmpq,false,true),(&ulp,false,true),(&pb,false,true),(&pq,false,true),(&sys,false,false),(&t22,false,false),(&tok,false,false),(&qt,false,false),(&ata,false,false),(&ev,false,false),(&am,false,false)],data,&[pas])?;
- if !mayhem{require!(ctx.remaining_accounts.len()>=2,PumpError::NotEnoughRemainingAccounts);let boost=&ctx.remaining_accounts[0];let vault=&ctx.remaining_accounts[1];let top=rent.minimum_balance(quote_account_size(&wsol)?).saturating_sub(vault.lamports());if top>0{call(&sys,&[(&user,true,true),(&pa,false,true)],{let mut v=2u32.to_le_bytes().to_vec();v.extend_from_slice(&top.to_le_bytes());v},&[])?;}call(&am,&[(&pool,false,true),(&cfg,false,false),(&pa,true,true),(&base_mint,false,false),(&wsol,false,false),(&pb,false,true),(&pq,false,true),(boost,false,false),(vault,false,true),(&qt,false,false),(&sys,false,false),(&ata,false,false),(&ev,false,false),(&am,false,false)],vec![140,233,33,94,132,90,194,143],&[pas])?;}
+ if !mayhem && (ctx.remaining_accounts.len()==2 || crate::migrate::native_payments::boost_enabled(&cfg)) {
+  require!(ctx.remaining_accounts.len()==2,PumpError::NotEnoughRemainingAccounts);
+  let boost=&ctx.remaining_accounts[0];let vault=&ctx.remaining_accounts[1];
+  let initial_balance=pa.lamports();let boost_rent=Rent::get()?;
+  let funding=boost_rent.minimum_balance(quote_account_size(&wsol)?);
+  crate::migrate::native_payments::transfer_native(a.system_program.as_ref(),&a.user,&a.pool_authority,funding)?;
+  call(&am,&[(&pool,false,true),(&cfg,false,false),(&pa,true,true),(&base_mint,false,false),(&wsol,false,false),(&pb,false,true),(&pq,false,true),(boost,false,false),(vault,false,true),(&qt,false,false),(&sys,false,false),(&ata,false,false),(&ev,false,false),(&am,false,false)],vec![140,233,33,94,132,90,194,143],&[pas])?;
+  let after_balance=pa.lamports();
+  refund_pool_authority(a,ctx.bumps.pool_authority,&user,after_balance.saturating_sub(initial_balance))?;
+  crate::migrate::native_payments::transfer_native(a.system_program.as_ref(),&a.user,&a.pool_authority,initial_balance.saturating_sub(after_balance))?;
+ }
  call(&tok,&[(&tmpb,false,true),(&wa,false,true),(&pa,true,false)],vec![9],&[pas])?;
  if !quote_preexisting{if quote_extensions(&wsol)?.contains(&1){if !wsol.is_writable{return err!(MigrateV2Error::QuoteMintNotWritable)}call(&qt,&[(&wsol,false,true),(&tmpq,false,true)],vec![26,4],&[])?;}
  call(&qt,&[(&tmpq,false,true),(&wa,false,true),(&pa,true,false)],vec![9],&[pas])?;}
