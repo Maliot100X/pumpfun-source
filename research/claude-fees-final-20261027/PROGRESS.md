@@ -79,3 +79,7 @@ tail helper), or an if-let/match whose scrutinee temp is a surviving alloca with
 - Harvest dir written: fees100/shared/harvest/fees-final-1/ (source.patch vs w580, symbols.so, candidate.so, measure.json,
   NOTES.md, SHA256SUMS). Upstream main already matches ATA via a try block (fees-ata-prefix-integration, 582 frontier with
   Extend); this is an alternative stable-Rust form.
+- ata-letelse runtime: 17,331 cases / 18 suites / 0 mismatches (runtime/ata-letelse-summary.json).
+- ata-letelse repeat build (out/work/c3/ata-letelse-repeat) was queued behind the shared podman lock when this lane
+  stopped; background task output prints REPEAT-IDENTICAL when it finishes. w579 and w580 repeats in this same
+  environment were byte-identical.
