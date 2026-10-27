@@ -92,6 +92,8 @@ def verify_ata(w, loc, original, w580_symbols):
     assert sha(stripped) == ATA_STRIPPED and sha(symbols) == ATA_SYMBOLS
     r = json.loads((HERE / 'builds/ata-letelse/result.json').read_text())
     assert r['candidate_sha256'] == ATA_STRIPPED and r['symbols_sha256'] == ATA_SYMBOLS and r['exit_code'] == 0
+    rep = json.loads((HERE / 'builds/ata-letelse-repeat.json').read_text())
+    assert rep['candidate_sha256'] == ATA_STRIPPED and rep['symbols_sha256'] == ATA_SYMBOLS
     bn, br, _ = windows_summary(w, original, w580_symbols)
     an, ar, pairs = windows_summary(w, original, symbols)
     assert len(an) == 581 and len(ar) == 200 and pairs == 434
