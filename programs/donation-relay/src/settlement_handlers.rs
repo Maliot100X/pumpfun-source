@@ -68,7 +68,7 @@ macro_rules! distribution_error {($file:literal,$code:ident,$line:literal)=>{anc
  error_origin:Some(anchor_lang::error::ErrorOrigin::Source(anchor_lang::error::Source {filename:$file,line:$line})),compared_values:None})};}
 macro_rules! admit_shares {($shares:expr)=>{{
  let mut sum=0u32;for share in $shares.iter() {sum=sum.checked_add(u32::from(share.bps)).ok_or(Code::ArithmeticOverflow)?;}
- if sum!=10000 {return Err(distribution_error!("programs/contracts/src/tools/checks.rs",BpsSumDoesNotEqualTenThousand,204));}
+ if sum!=10000 {return Err(distribution_error!("programs/contracts/src/tools/checks.rs",BpsSumDoesNotEqualTenThousand,204).with_values((sum,10000u32)));}
 }};}
 pub fn distribute_non_swap<'info>(accounts:&mut DistributeNonSwapOutputMintV1<'info>,shares:Vec<Share>,remaining:&'info [AccountInfo<'info>])->Result<DonationEpochProcessedV1Event> {
  if !(accounts.distribution.epoch<accounts.epoch_tracker.current_epoch) {return Err(distribution_error!("programs/contracts/src/instructions/v1/relayer_only/distribute/distribute_non_swap_output_mint.rs",EpochNotClosed,83));}
