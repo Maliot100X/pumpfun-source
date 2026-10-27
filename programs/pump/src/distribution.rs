@@ -102,7 +102,7 @@ pub fn execute_v2<'info>(ctx:Context<'_, '_, '_, 'info,DistributeCreatorFeesV2<'
  }else{
   let data=a.creator_vault_quote_token_account.try_borrow_data()?;
   let source=anchor_spl::token_interface::TokenAccount::try_deserialize(&mut data.as_ref())?;drop(data);
-  let transfers=get_token_distribution_amounts(&a.sharing_config.shareholders,ctx.remaining_accounts,&source,a.quote_mint.key(),a.quote_token_program.key(),initialize_ata)?;
+  let (transfers,_source_amount)=get_token_distribution_amounts(&a.sharing_config.shareholders,ctx.remaining_accounts,&source,&a.quote_mint,initialize_ata)?;
   eligible=true;
   for (i,(amount,needs_initialize)) in transfers.into_iter().enumerate(){
    let recipient=&ctx.remaining_accounts[i];let ata=&ctx.remaining_accounts[count+i];
@@ -138,23 +138,28 @@ pub(crate) fn get_distribution_amounts<'info>(rent:&Rent,shares:&[Shareholder],r
  Ok((transfers,minimum,reserve.saturating_add(minimum),available))
 }
 
-fn get_token_distribution_amounts(shares:&[Shareholder],recipients:&[AccountInfo],source:&anchor_spl::token_interface::TokenAccount,quote_mint:Pubkey,token_program:Pubkey,initialize_ata:bool)->Result<Vec<(u64,bool)>>{
+#[inline(never)]
+pub fn get_token_distribution_amounts(shares:&[Shareholder],recipients:&[AccountInfo],source:&anchor_spl::token_interface::TokenAccount,quote_mint:&InterfaceAccount<anchor_spl::token_interface::Mint>,initialize_ata:bool)->Result<(Vec<(u64,bool)>,u64)>{
+ let source_amount=source.amount;
  let mut transfers=Vec::with_capacity(shares.len());
  for (i,share) in shares.iter().enumerate(){
   let recipient=recipients.get(i).ok_or_else(||error!(PumpError::NotEnoughRemainingAccounts))?;
   let ata=recipients.get(shares.len()+i).ok_or_else(||error!(PumpError::NotEnoughRemainingAccounts))?;
-  require!(share.address==recipient.key(),PumpError::ShareholdersAndRemainingAccountsMismatch);
-  let expected=anchor_spl::associated_token::get_associated_token_address_with_program_id(&recipient.key(),&quote_mint,&token_program);
-  require!(ata.key()==expected,PumpError::ShareholdersAndRemainingAccountsMismatch);
-  if recipient.executable{
-   msg!("Unable to distribute to {}. Shareholder is a program account, use pump_fees::update_fee_shares to remove the shareholder from the team",recipient.key());
-   return err!(PumpError::UnableToDistributeCreatorFeesToExecutableRecipient);
+  {
+   let quote_mint_info=quote_mint.to_account_info();
+   require!(share.address==recipient.key(),PumpError::ShareholdersAndRemainingAccountsMismatch);
+   let expected=anchor_spl::associated_token::get_associated_token_address_with_program_id(&share.address,&quote_mint_info.key(),quote_mint_info.owner);
+   require!(ata.key()==expected,PumpError::ShareholdersAndRemainingAccountsMismatch);
+   if recipient.executable{
+    msg!("Unable to distribute to {}. Shareholder is a program account, use pump_fees::update_fee_shares to remove the shareholder from the team",recipient.key());
+    return err!(PumpError::UnableToDistributeCreatorFeesToExecutableRecipient);
+   }
   }
   require!(share.share_bps>0,PumpError::InvalidShareBps);
-  let amount=source.amount.checked_mul(u64::from(share.share_bps)).ok_or_else(||error!(PumpError::Overflow))?/10000;
-  let needs_initialize=ata.data_is_empty();
+  let amount=source_amount.checked_mul(u64::from(share.share_bps)).ok_or_else(||error!(PumpError::Overflow))?/10000;
+  let needs_initialize=ata.to_account_info().data_len()==0;
   require!(!needs_initialize||initialize_ata,PumpError::UnableToDistributeCreatorFeesToUninitializedAccount);
   transfers.push((amount,needs_initialize));
  }
- Ok(transfers)
+ Ok((transfers,source_amount))
 }

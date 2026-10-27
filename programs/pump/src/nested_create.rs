@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 
 const CURVE_DISC: [u8; 8] = [23, 183, 248, 55, 96, 216, 172, 96];
 const POOL_DISC: [u8; 8] = [241, 154, 109, 4, 17, 177, 109, 188];
-const CONTROL_DISC: [u8; 8] = [56, 244, 35, 238, 193, 213, 162, 201];
+use crate::quote_control::state::control_entry;
 const AMM: Pubkey = anchor_lang::solana_program::pubkey!("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
 
 #[derive(Clone, Copy)]
@@ -42,18 +42,6 @@ fn ancestor(account: &AccountInfo<'_>, mint: &Pubkey) -> Result<BondingCurve> {
 pub(super) fn control_account(account: &AccountInfo<'_>, mint: &Pubkey) -> Result<Option<u64>> {
     let data = account.try_borrow_data()?;
     control_entry(&data, mint)
-}
-
-pub(super) fn control_entry(data: &[u8], mint: &Pubkey) -> Result<Option<u64>> {
-    require!(data.len() >= 108, PumpError::InvalidQuoteControl);
-    require!(data[..8] == CONTROL_DISC, PumpError::InvalidQuoteControl);
-    let count = u32::from_le_bytes(data[104..108].try_into().unwrap()) as usize;
-    let end = crate::quote_control::state::QuoteControl::space(count)?;
-    let entries = data.get(108..end).ok_or_else(|| error!(PumpError::InvalidQuoteControl))?;
-    for entry in entries.chunks_exact(40) {
-        if entry[..32] == mint.to_bytes() { return Ok(Some(u64_at(entry, 32))); }
-    }
-    Ok(None)
 }
 
 fn root_seed(g: &Global, quote: &Pubkey, control: &[u8]) -> Result<u64> {

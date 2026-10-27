@@ -1,5 +1,20 @@
-use crate::{GlobalVolumeAccumulator, PumpError, UserVolumeAccumulator};
+use crate::PumpError;
 use anchor_lang::prelude::*;
+
+#[account]
+#[derive(Debug)]
+pub struct GlobalVolumeAccumulator {
+    pub start_time: i64,
+    pub end_time: i64,
+    pub seconds_in_a_day: i64,
+    pub mint: Pubkey,
+    pub total_token_supply: [u64;30],
+    pub sol_volumes: [u64;30],
+}
+
+#[account]
+#[derive(Default)]
+pub struct UserVolumeAccumulator{pub user:Pubkey,pub needs_claim:bool,pub total_unclaimed_tokens:u64,pub total_claimed_tokens:u64,pub current_sol_volume:u64,pub last_update_timestamp:i64,pub has_total_claimed_tokens:bool,pub cashback_earned:u64,pub total_cashback_claimed:u64,pub stable_cashback_earned:u64,pub total_stable_cashback_claimed:u64}
 
 // Captured main-Pump worker: 0x7bfd8. Claim passes zero new volume, while
 // the recovered worker retains the original generic update signature.
@@ -206,18 +221,6 @@ fn current_day(accumulator: &GlobalVolumeAccumulator, timestamp: i64) -> usize {
 }
 
 #[inline(never)]
-pub fn record_cashback_claim(user: &mut UserVolumeAccumulator, amount: u64, native: bool) -> Result<()> {
-    if native {
-        user.total_cashback_claimed = user.total_cashback_claimed.checked_add(amount)
-            .expect("Overflowing total cashback claimed");
-    } else {
-        user.total_stable_cashback_claimed = user.total_stable_cashback_claimed.checked_add(amount)
-            .expect("Overflowing total stable cashback claimed");
-    }
-    Ok(())
-}
-
-#[inline(never)]
 pub fn record_cashback_earned(user: &mut UserVolumeAccumulator, amount: u64, native: bool) -> Result<()> {
     if native {
         user.cashback_earned = user.cashback_earned.checked_add(amount)
@@ -225,6 +228,18 @@ pub fn record_cashback_earned(user: &mut UserVolumeAccumulator, amount: u64, nat
     } else {
         user.stable_cashback_earned = user.stable_cashback_earned.checked_add(amount)
             .expect("Overflowing stable cashback earned");
+    }
+    Ok(())
+}
+
+#[inline(never)]
+pub fn record_cashback_claim(user: &mut UserVolumeAccumulator, amount: u64, native: bool) -> Result<()> {
+    if native {
+        user.total_cashback_claimed = user.total_cashback_claimed.checked_add(amount)
+            .expect("Overflowing total cashback claimed");
+    } else {
+        user.total_stable_cashback_claimed = user.total_stable_cashback_claimed.checked_add(amount)
+            .expect("Overflowing total stable cashback claimed");
     }
     Ok(())
 }

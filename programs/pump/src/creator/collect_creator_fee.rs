@@ -16,20 +16,33 @@ pub struct CollectCreatorFeeV2<'info>{
  pub associated_token_program:Program<'info,anchor_spl::associated_token::AssociatedToken>,
  pub system_program:Program<'info,System>,
 }
-pub fn execute(ctx:Context<CollectCreatorFeeV2>)->Result<()>{
- let a=&ctx.accounts;require!(*a.creator.owner!=crate::distribution::FEES,crate::PumpError::UnableToDistributeCreatorVaultMigratedToSharingConfig);if a.creator.executable{msg!("Creator account is executable, so it cannot receive lamports");return Ok(());}
- let native=a.quote_mint.key()==anchor_spl::token::spl_token::native_mint::ID;
+pub(crate) fn collect<'info>(
+ creator:&AccountInfo<'info>,creator_token_account:&AccountInfo<'info>,creator_vault:&AccountInfo<'info>,
+ creator_vault_bump:u8,creator_vault_token_account:&AccountInfo<'info>,decimals:u8,quote_mint:&AccountInfo<'info>,
+ quote_token_program:&Interface<'info,anchor_spl::token_interface::TokenInterface>,system_program:&Program<'info,System>,
+)->Result<Option<(u64,Pubkey)>>{
+ require!(*creator.owner!=crate::distribution::FEES,crate::PumpError::UnableToDistributeCreatorVaultMigratedToSharingConfig);
+ if creator.executable{msg!("Creator account is executable, so it cannot receive lamports");return Ok(None);}
+ let native=quote_mint.key()==anchor_spl::token::spl_token::native_mint::ID;
  let amount=if native{
   let rent=Rent::get()?;
-  let amount=a.creator_vault.lamports().saturating_sub(rent.minimum_balance(0));
-  if amount>0 && a.creator.lamports().saturating_add(amount)<rent.minimum_balance(a.creator.data_len()){msg!("Creator account does not have enough rent-exemption lamports");return Ok(());}
+  let amount=creator_vault.lamports().saturating_sub(rent.minimum_balance(0));
+  if amount>0 && creator.lamports().saturating_add(amount)<rent.minimum_balance(creator.data_len()){msg!("Creator account does not have enough rent-exemption lamports");return Ok(None);}
   amount
  }else{
-  let data=a.creator_vault_token_account.try_borrow_data()?;anchor_spl::token_interface::TokenAccount::try_deserialize(&mut &data[..])?.amount
+  let data=creator_vault_token_account.try_borrow_data()?;anchor_spl::token_interface::TokenAccount::try_deserialize(&mut &data[..])?.amount
  };
- if amount==0{msg!("No creator fee to collect");return Ok(());}
- let creator=a.creator.key();let bump=[ctx.bumps.creator_vault];let seeds:&[&[u8]]=&[b"creator-vault",creator.as_ref(),&bump];
- if native{anchor_lang::system_program::transfer(CpiContext::new_with_signer(a.system_program.to_account_info(),anchor_lang::system_program::Transfer{from:a.creator_vault.to_account_info(),to:a.creator.to_account_info()},&[seeds]),amount)?;}
- else{anchor_spl::token_interface::transfer_checked(CpiContext::new_with_signer(a.quote_token_program.to_account_info(),anchor_spl::token_interface::TransferChecked{from:a.creator_vault_token_account.to_account_info(),mint:a.quote_mint.to_account_info(),to:a.creator_token_account.to_account_info(),authority:a.creator_vault.to_account_info()},&[seeds]),amount,a.quote_mint.decimals)?;}
- let event=CollectCreatorFeeEvent{timestamp:Clock::get()?.unix_timestamp,creator,creator_fee:amount,quote_mint:if native{Pubkey::default()}else{a.quote_mint.key()}};emit!(event.clone());emit_cpi!(event);Ok(())
+ if amount==0{msg!("No creator fee to collect");return Ok(None);}
+ let creator_key=creator.key();let bump=[creator_vault_bump];let seeds:&[&[u8]]=&[b"creator-vault",creator_key.as_ref(),&bump];
+ if native{anchor_lang::system_program::transfer(CpiContext::new_with_signer(system_program.to_account_info(),anchor_lang::system_program::Transfer{from:creator_vault.clone(),to:creator.clone()},&[seeds]),amount)?;}
+ else{anchor_spl::token_interface::transfer_checked(CpiContext::new_with_signer(quote_token_program.to_account_info(),anchor_spl::token_interface::TransferChecked{from:creator_vault_token_account.clone(),mint:quote_mint.clone(),to:creator_token_account.clone(),authority:creator_vault.clone()},&[seeds]),amount,decimals)?;}
+ Ok(Some((amount,if native{Pubkey::default()}else{quote_mint.key()})))
+}
+
+pub fn execute(ctx:Context<CollectCreatorFeeV2>)->Result<()>{
+ let a=&ctx.accounts;
+ if let Some((amount,quote_mint))=collect(&a.creator,a.creator_token_account.as_ref(),&a.creator_vault,ctx.bumps.creator_vault,a.creator_vault_token_account.as_ref(),a.quote_mint.decimals,a.quote_mint.as_ref().as_ref(),&a.quote_token_program,&a.system_program)?{
+  let event=CollectCreatorFeeEvent{timestamp:Clock::get()?.unix_timestamp,creator:a.creator.key(),creator_fee:amount,quote_mint};emit!(event.clone());emit_cpi!(event);
+ }
+ Ok(())
 }

@@ -11,17 +11,18 @@ ELF and, through a separate loader deployment, its captured payload.**
 
 [Current main-Pump parallel research snapshot](research/main-pump-parallel-checkpoint-20261027/README.md) preserves the verified intermediates and in-progress source beyond the maintained checkpoint.
 
-**Main Pump: 71.2% of function windows matched; 50.2% of original text covered. Complete reconstruction remains unfinished.**
+**Main Pump: 71.3% of function windows matched; 50.2% of original text covered. Complete reconstruction remains unfinished.**
 
-Reproduce the selected Pump ELF with its [archived Rust/linker recipe](repro/pump/main-contract-round35-20261027/reproduce.py).
-
-
+Reproduce the selected Pump ELF with its [archived Rust/linker recipe](repro/pump/main-contract-round36-20261027/reproduce.py).
 
 
 
 
-Across the latest verified checkpoints, **2,890 / 3,338 inferred function windows
-match (86.6%)**. Their matched windows cover **3,824,784 / 5,213,128 original text
+
+
+
+Across the latest verified checkpoints, **2,891 / 3,338 inferred function windows
+match (86.6%)**. Their matched windows cover **3,825,256 / 5,213,128 original text
 bytes (73.4%)**. **One of five programs has complete meaningful-ELF identity**;
 all four core contracts still differ from their captured binaries.
 
@@ -31,12 +32,12 @@ all remaining code, calls, data, relocations and build provenance.
 
 | Latest verified checkpoint | Matched windows | Matched % | Raw-equal bodies | Normalized only | Unmatched | Whole ELF equal |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| [Pump Round35](repro/pump/main-contract-round35-20261027/README.md) | 737 / 1,035 | 71.2% | 145 | 592 | 298 | No |
+| [Pump Round36](repro/pump/main-contract-round36-20261027/README.md) | 738 / 1,035 | 71.3% | 145 | 593 | 297 | No |
 | [PumpSwap / AMM](repro/pump_amm/event-decoder-recovery-20261027/README.md) | 647 / 785 | 82.4% | 148 | 499 | 138 | No |
 | [Fees research](research/fees-extend-integration/README.md) | 582 / 585 | 99.5% | 200 | 382 | 3 | No |
 | [Mayhem research](research/mayhem-quotes-current-recovery-20261027/README.md) | 432 / 441 | 98.0% | 100 | 332 | 9 | No |
 | [Donation Relay](repro/donation-relay/canonical-exact-selection/README.md) | 492 / 492 | 100.0% | 492 | 0 | 0 | **Yes** |
-| **Total** | **2,890 / 3,338** | **86.6%** | **1,085** | **1,805** | **448** | **1 / 5** |
+| **Total** | **2,891 / 3,338** | **86.6%** | **1,085** | **1,806** | **447** | **1 / 5** |
 
 “Windows” are inferred original machine-function ranges, including framework and
 runtime helpers. Complete normalized matches mask specified call/address
@@ -46,12 +47,12 @@ the whole program is identical.
 
 | Checkpoint | Text bytes in matched windows | Text covered | Unmatched text |
 | --- | ---: | ---: | ---: |
-| Pump Round35 | 900,048 / 1,792,208 | 50.2% | 892,160 |
+| Pump Round36 | 900,520 / 1,792,208 | 50.2% | 891,688 |
 | PumpSwap / AMM | 810,544 / 1,162,040 | 69.8% | 351,496 |
 | Fees research | 762,912 / 799,648 | 95.4% | 36,736 |
 | Mayhem research | 598,792 / 706,744 | 84.7% | 107,952 |
 | Donation Relay | 752,488 / 752,488 | 100.0% | 0 |
-| **Total** | **3,824,784 / 5,213,128** | **73.4%** | **1,388,344** |
+| **Total** | **3,825,256 / 5,213,128** | **73.4%** | **1,387,872** |
 
 Pump and AMM rows describe the verified maintained sources. Fees and Mayhem rows
 are the latest qualified research frontiers, distinct from their maintained
@@ -120,7 +121,7 @@ pass. Its 641-window research artifact remains bound to its former
 640-window parent; the maintained 647-window checkpoint is reported above.
 The parent's other supplemental matrices were not rerun on this artifact.
 
-Pump Round35 passes 10,468 full cases plus 7,610 focused executions, with 18,074
+Pump Round36 passes 10,468 full cases plus 7,628 focused executions, with 18,092
 paired diagnostic-log cases. AMM passes 17,462 full cases plus the separate
 account, fee, CPI, boundary and error-order matrices recorded in its checkpoint.
 The [independent Pump/AMM migration-pair replay](research/pump-amm-migration-composition/README.md)
@@ -206,7 +207,7 @@ no accepted matches.
 
 The latest [PumpSwap event, decoder and rent recovery](repro/pump_amm/event-decoder-recovery-20261027/README.md) matches 647 windows and 148 raw bodies, recovers the optional-bool decoder, both legacy dispatch wrappers and sell-event capture, and corrects creator-transfer rent/error boundaries. All 17,462 corpus cases and retained supplemental suites pass; 138 AMM windows remain. A later [optional-u64 follow-up](repro/pump_amm/event-decoder-recovery-20261027/followup/optional-u64/README.md) records 123 differences in 264 short-tail cases; its correction is under test.
 
-Remaining priorities are the 298 Pump, 138 AMM, 3 Fees and 9 Mayhem unmatched
+Remaining priorities are the 297 Pump, 138 AMM, 3 Fees and 9 Mayhem unmatched
 windows; deeper call/data/relocation identity; original build provenance; and
 uncovered behavior such as authentic fixed-admin AMM `create_config` success.
 The historical [150-handler audit](repro/reconstruction-audit-2026-10-26/handlers.md)

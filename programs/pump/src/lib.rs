@@ -6,6 +6,7 @@ pub mod incentives;
 pub use incentives::*;
 pub mod token_incentives;
 pub use token_incentives::*;
+pub use token_incentives::volume_accumulator::{GlobalVolumeAccumulator, UserVolumeAccumulator};
 pub mod mayhem_virtual_params;
 pub use mayhem_virtual_params::*;
 pub mod buy_v2;
@@ -456,9 +457,6 @@ pub struct UpdateGlobalAuthorityEvent{pub global:Pubkey,pub authority:Pubkey,pub
 #[derive(Clone)]
 pub struct ReservedFeeRecipientsEvent{pub timestamp:i64,pub reserved_fee_recipient:Pubkey,pub reserved_fee_recipients:[Pubkey;7]}
 
-#[account]
-#[derive(Default)]
-pub struct UserVolumeAccumulator{pub user:Pubkey,pub needs_claim:bool,pub total_unclaimed_tokens:u64,pub total_claimed_tokens:u64,pub current_sol_volume:u64,pub last_update_timestamp:i64,pub has_total_claimed_tokens:bool,pub cashback_earned:u64,pub total_cashback_claimed:u64,pub stable_cashback_earned:u64,pub total_stable_cashback_claimed:u64}
 #[event_cpi]
 #[derive(Accounts)]
 pub struct InitUserVolume<'info>{
